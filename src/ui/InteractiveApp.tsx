@@ -14,6 +14,7 @@ import { runScaffold } from '../services/scaffold';
 export interface InteractiveAppProps {
   initialType?: string;
   initialProjectName?: string;
+  initialTargetPath?: string;
   initialDescription?: string;
   initialAuthor?: string;
   initialGit?: boolean;
@@ -21,11 +22,22 @@ export interface InteractiveAppProps {
   templatesList: { value: string; label: string; description: string }[];
 }
 
-type Step = 'TYPE' | 'NAME' | 'DESCRIPTION' | 'AUTHOR' | 'GIT' | 'INSTALL' | 'CONFIRM' | 'GENERATING' | 'SUCCESS';
+type Step =
+  | 'TYPE'
+  | 'NAME'
+  | 'PATH'
+  | 'DESCRIPTION'
+  | 'AUTHOR'
+  | 'GIT'
+  | 'INSTALL'
+  | 'CONFIRM'
+  | 'GENERATING'
+  | 'SUCCESS';
 
 export const InteractiveApp: React.FC<InteractiveAppProps> = ({
   initialType = '',
   initialProjectName = '',
+  initialTargetPath = '',
   initialDescription = '',
   initialAuthor = '',
   initialGit = true,
@@ -36,6 +48,7 @@ export const InteractiveApp: React.FC<InteractiveAppProps> = ({
 
   const [type, setType] = useState(initialType);
   const [projectName, setProjectName] = useState(initialProjectName);
+  const [targetPath, setTargetPath] = useState(initialTargetPath);
   const [description, setDescription] = useState(initialDescription);
   const [author, setAuthor] = useState(initialAuthor);
   const [git, setGit] = useState(initialGit);
@@ -51,6 +64,7 @@ export const InteractiveApp: React.FC<InteractiveAppProps> = ({
   const steps: Step[] = [];
   if (!initialType) steps.push('TYPE');
   if (!initialProjectName) steps.push('NAME');
+  if (!initialTargetPath) steps.push('PATH');
   if (!initialDescription) steps.push('DESCRIPTION');
   if (!initialAuthor) steps.push('AUTHOR');
   steps.push('GIT');
@@ -76,6 +90,7 @@ export const InteractiveApp: React.FC<InteractiveAppProps> = ({
           await runScaffold({
             type,
             projectName: projectName || undefined,
+            targetPath: targetPath || undefined,
             description: description || undefined,
             author: author || undefined,
             git,
@@ -156,6 +171,7 @@ export const InteractiveApp: React.FC<InteractiveAppProps> = ({
           <Text color="white" bold underline>
             {currentStep === 'TYPE' && 'Select Project Type'}
             {currentStep === 'NAME' && 'Enter Project Name'}
+            {currentStep === 'PATH' && 'Enter Installation Path'}
             {currentStep === 'DESCRIPTION' && 'Enter Project Description'}
             {currentStep === 'AUTHOR' && 'Enter Author Name'}
             {currentStep === 'GIT' && 'Initialize Git Repository?'}
@@ -191,6 +207,24 @@ export const InteractiveApp: React.FC<InteractiveAppProps> = ({
                 onSubmit={(val: string) => {
                   const finalName = val.trim() || `my-${type || 'ms'}-project`;
                   setProjectName(finalName);
+                  handleNext();
+                }}
+              />
+            </Box>
+          </Box>
+        )}
+
+        {currentStep === 'PATH' && (
+          <Box flexDirection="column">
+            <Text color="gray">{"Enter target installation path (default: current directory './'):"}</Text>
+            <Box marginY={1}>
+              <TextInput
+                value={targetPath}
+                placeholder="./"
+                onChange={setTargetPath}
+                onSubmit={(val: string) => {
+                  const finalPath = val.trim() || './';
+                  setTargetPath(finalPath);
                   handleNext();
                 }}
               />
@@ -255,6 +289,9 @@ export const InteractiveApp: React.FC<InteractiveAppProps> = ({
               <Text color="violet" bold>
                 {projectName || `my-${type}-project`}
               </Text>
+            </Text>
+            <Text>
+              Target Path: <Text color="violet">{targetPath || './'}</Text>
             </Text>
             <Text>
               Description: <Text color="violet">{description || '(none)'}</Text>

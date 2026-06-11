@@ -20,6 +20,7 @@ export const createCommand = new Command('create')
   .description('Generate a new project scaffold')
   .argument('[type]', 'Type/alias of the project scaffold (e.g. ms, microservice)')
   .argument('[project-name]', 'Name of the project directory')
+  .argument('[target-path]', 'Directory where the project folder will be created (default: current directory)')
   .option('-d, --description <desc>', 'Project description')
   .option('-a, --author <name>', 'Author name')
   .option('-g, --git', 'Initialize a Git repository', true)
@@ -28,72 +29,81 @@ export const createCommand = new Command('create')
   .option('--no-install', 'Skip dependency installation')
   .option('-y, --yes', 'Skip interactive prompts (requires type to be provided)', false)
   .option('--interactive', 'Force interactive mode', false)
-  .action(async (type: string | undefined, projectName: string | undefined, options: CreateCommandOptions) => {
-    const templates = resolveTemplates();
+  .action(
+    async (
+      type: string | undefined,
+      projectName: string | undefined,
+      targetPath: string | undefined,
+      options: CreateCommandOptions
+    ) => {
+      const templates = resolveTemplates();
 
-    // Verify if provided type matches a valid template
-    if (type) {
-      const template = templates.find(t => t.id === type);
-      if (!template) {
-        console.error(`Error: Unknown project type "${type}".`);
-        console.error('Available types:');
-        for (const t of templates) {
-          console.error(`  - ${t.id} (${t.name}): ${t.description}`);
+      // Verify if provided type matches a valid template
+      if (type) {
+        const template = templates.find(t => t.id === type);
+        if (!template) {
+          console.error(`Error: Unknown project type "${type}".`);
+          console.error('Available types:');
+          for (const t of templates) {
+            console.error(`  - ${t.id} (${t.name}): ${t.description}`);
+          }
+          process.exit(1);
         }
-        process.exit(1);
       }
-    }
 
-    // If running in non-interactive mode (--yes), require a type
-    if (options.yes && !type) {
-      console.error('Error: Project type is required when running in non-interactive mode (--yes).');
-      process.exit(1);
-    }
-
-    // Determine if we should fall back to interactive mode.
-    // If the user did not explicitly request non-interactive mode (--yes), we launch the interactive TUI.
-    const isInteractive = !options.yes;
-
-    if (isInteractive) {
-      if (!process.stdin.isTTY) {
-        console.error('⚠️  Interactive TUI mode is not supported in this terminal environment (non-TTY).');
-        console.error('Please specify the project type and use the non-interactive flags instead.');
-        console.error('Example: bun run dev create ms my-project --yes');
+      // If running in non-interactive mode (--yes), require a type
+      if (options.yes && !type) {
+        console.error('Error: Project type is required when running in non-interactive mode (--yes).');
         process.exit(1);
       }
 
-      const templatesList = templates.map(t => ({
-        value: t.id,
-        label: t.name,
-        description: t.description,
-      }));
+      // Determine if we should fall back to interactive mode.
+      // If the user did not explicitly request non-interactive mode (--yes), we launch the interactive TUI.
+      const isInteractive = !options.yes;
 
-      const { waitUntilExit } = render(
-        React.createElement(InteractiveApp, {
-          initialType: type,
-          initialProjectName: projectName,
-          initialDescription: options.description,
-          initialAuthor: options.author,
-          initialGit: options.git,
-          initialInstall: options.install,
-          templatesList,
-        })
-      );
-      await waitUntilExit();
-    } else {
-      try {
-        await runScaffold({
-          type,
-          projectName,
-          description: options.description,
-          author: options.author,
-          git: options.git !== false,
-          install: options.install !== false,
-          interactive: false,
-        });
-      } catch (err) {
-        console.error(`❌ Scaffolding failed: ${String(err)}`);
-        process.exit(1);
+      if (isInteractive) {
+        if (!process.stdin.isTTY) {
+          console.error('⚠️  Interactive TUI mode is not supported in this terminal environment (non-TTY).');
+          console.error('Please specify the project type and use the non-interactive flags instead.');
+          console.error('Example: bun run dev create ms my-project --yes');
+          process.exit(1);
+        }
+
+        const templatesList = templates.map(t => ({
+          value: t.id,
+          label: t.name,
+          description: t.description,
+        }));
+
+        const { waitUntilExit } = render(
+          React.createElement(InteractiveApp, {
+            initialType: type,
+            initialProjectName: projectName,
+            initialTargetPath: targetPath,
+            initialDescription: options.description,
+            initialAuthor: options.author,
+            initialGit: options.git,
+            initialInstall: options.install,
+            templatesList,
+          })
+        );
+        await waitUntilExit();
+      } else {
+        try {
+          await runScaffold({
+            type,
+            projectName,
+            targetPath,
+            description: options.description,
+            author: options.author,
+            git: options.git !== false,
+            install: options.install !== false,
+            interactive: false,
+          });
+        } catch (err) {
+          console.error(`❌ Scaffolding failed: ${String(err)}`);
+          process.exit(1);
+        }
       }
     }
-  });
+  );

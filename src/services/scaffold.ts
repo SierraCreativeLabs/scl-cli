@@ -39,6 +39,7 @@ export type ScaffoldProgress = (
 export interface ScaffoldOptions {
   type?: string;
   projectName?: string;
+  targetPath?: string;
   description?: string;
   author?: string;
   git: boolean;
@@ -195,7 +196,8 @@ export async function runScaffold(options: ScaffoldOptions): Promise<void> {
   }
 
   const targetDirName = options.projectName ?? `my-${selectedTemplate.id}-project`;
-  const targetPath = path.resolve(process.cwd(), targetDirName);
+  const parentPath = options.targetPath ?? process.cwd();
+  const targetPath = path.resolve(parentPath, targetDirName);
 
   if (fs.existsSync(targetPath)) {
     throw new Error(`Target directory already exists: "${targetPath}"`);
