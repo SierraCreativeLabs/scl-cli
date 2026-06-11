@@ -2,8 +2,12 @@
   "name": "scl-cli",
   "module": "src/index.ts",
   "type": "module",
+  "bin": {
+    "scl-cli": "./dist/index.js"
+  },
   "scripts": {
     "dev": "bun run src/index.ts",
+    "build": "bun build ./src/index.ts --outfile=./dist/index.js --target=bun --packages=external && chmod +x ./dist/index.js",
     "prepare": "husky"
   },
   "devDependencies": {

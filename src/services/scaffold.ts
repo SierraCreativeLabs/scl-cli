@@ -56,7 +56,8 @@ export function resolveTemplates(): TemplateInfo[] {
   const lookupDirs = [
     path.resolve(process.cwd(), '.scl-templates'),
     path.resolve(os.homedir(), '.scl-cli/templates'),
-    path.resolve(import.meta.dir, '../../templates'), // fallback to built-in CLI templates
+    path.resolve(import.meta.dir, '../../templates'), // fallback to built-in CLI templates (dev mode)
+    path.resolve(import.meta.dir, '../templates'), // fallback to built-in CLI templates (built mode)
   ];
 
   const templates: TemplateInfo[] = [];
