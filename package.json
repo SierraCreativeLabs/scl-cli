@@ -3,11 +3,34 @@
   "module": "src/index.ts",
   "type": "module",
   "scripts": {
-    "dev": "bun run src/index.ts"
+    "dev": "bun run src/index.ts",
+    "prepare": "husky"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@secretlint/secretlint-rule-preset-recommend": "^13.0.2",
+    "@trivago/prettier-plugin-sort-imports": "^6.0.2",
     "@types/bun": "latest",
-    "@types/react": "^19.2.17"
+    "@types/js-yaml": "^4.0.9",
+    "@types/node": "^25.9.3",
+    "@types/react": "^19.2.17",
+    "@vitest/coverage-v8": "^4.1.8",
+    "eslint": "^9.20.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-import-resolver-typescript": "^4.4.5",
+    "eslint-plugin-import": "^2.32.0",
+    "eslint-plugin-react": "^7.37.5",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "eslint-plugin-react-refresh": "^0.5.2",
+    "eslint-plugin-security": "^4.0.0",
+    "husky": "^9.1.7",
+    "ink-testing-library": "^4.0.0",
+    "lint-staged": "^17.0.7",
+    "prettier": "^3.8.4",
+    "secretlint": "^13.0.2",
+    "strip-ansi": "^7.2.0",
+    "typescript-eslint": "^8.61.0",
+    "vitest": "^4.1.8"
   },
   "peerDependencies": {
     "typescript": "^5"
@@ -24,5 +47,15 @@
     "react": "^19.2.7",
     "yaml": "^2.9.0",
     "zod": "^4.4.3"
+  },
+  "lint-staged": {
+    "src/**/*.{ts,tsx}": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "tests/**/*.{ts,tsx}": [
+      "eslint --fix",
+      "prettier --write"
+    ]
   }
 }

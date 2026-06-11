@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+
 import { Box, Text, useInput } from 'ink';
 
 export interface SelectItem {
@@ -35,9 +36,7 @@ export const Select = ({ items, onSelect }: SelectProps) => {
         const isSelected = index === selectedIndex;
         return (
           <Box key={item.value}>
-            <Text color={isSelected ? 'violet' : 'gray'}>
-              {isSelected ? ' › ' : '   '}
-            </Text>
+            <Text color={isSelected ? 'violet' : 'gray'}>{isSelected ? ' › ' : '   '}</Text>
             <Text color={isSelected ? 'violet' : 'white'} bold={isSelected}>
               {item.label}
             </Text>

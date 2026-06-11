@@ -1,8 +1,20 @@
-import { Command } from 'commander';
 import React from 'react';
+
 import { render } from 'ink';
+
+import { Command } from 'commander';
+
 import { runScaffold } from '../services/scaffold';
 import { InteractiveApp } from '../ui/InteractiveApp';
+
+interface CreateCommandOptions {
+  description?: string;
+  author?: string;
+  git: boolean;
+  install: boolean;
+  yes: boolean;
+  interactive: boolean;
+}
 
 export const createCommand = new Command('create')
   .description('Generate a new project scaffold')
@@ -16,7 +28,7 @@ export const createCommand = new Command('create')
   .option('--no-install', 'Skip dependency installation')
   .option('-y, --yes', 'Skip interactive prompts (requires type to be provided)', false)
   .option('--interactive', 'Force interactive mode', false)
-  .action(async (type, projectName, options) => {
+  .action(async (type: string | undefined, projectName: string | undefined, options: CreateCommandOptions) => {
     // If running in non-interactive mode (--yes), require a type
     if (options.yes && !type) {
       console.error('Error: Project type is required when running in non-interactive mode (--yes).');

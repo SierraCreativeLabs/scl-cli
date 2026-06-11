@@ -1,4 +1,5 @@
 import { Command } from 'commander';
+
 import { createCommand } from './commands/create';
 
 const program = new Command();

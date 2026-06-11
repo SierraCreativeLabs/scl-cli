@@ -1,4 +1,5 @@
 import React from 'react';
+
 import { Box, Text, useInput } from 'ink';
 
 interface ToggleProps {
@@ -22,7 +23,7 @@ export const Toggle = ({ value, onChange, onSubmit }: ToggleProps) => {
       <Text color={value ? 'violet' : 'gray'} bold={value}>
         {value ? '✔ Yes' : '  Yes'}
       </Text>
-      <Text color="gray">  /  </Text>
+      <Text color="gray"> / </Text>
       <Text color={!value ? 'violet' : 'gray'} bold={!value}>
         {!value ? '✔ No' : '  No'}
       </Text>
