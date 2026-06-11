@@ -9,6 +9,7 @@ import { Select } from '../components/Select';
 import type { SelectItem } from '../components/Select';
 import { TextInput } from '../components/TextInput';
 import { Toggle } from '../components/Toggle';
+import { runScaffold } from '../services/scaffold';
 
 export interface InteractiveAppProps {
   initialType?: string;
@@ -17,6 +18,7 @@ export interface InteractiveAppProps {
   initialAuthor?: string;
   initialGit?: boolean;
   initialInstall?: boolean;
+  templatesList: { value: string; label: string; description: string }[];
 }
 
 type Step = 'TYPE' | 'NAME' | 'DESCRIPTION' | 'AUTHOR' | 'GIT' | 'INSTALL' | 'CONFIRM' | 'GENERATING' | 'SUCCESS';
@@ -28,6 +30,7 @@ export const InteractiveApp: React.FC<InteractiveAppProps> = ({
   initialAuthor = '',
   initialGit = true,
   initialInstall = true,
+  templatesList,
 }) => {
   const { exit } = useApp();
 
@@ -37,6 +40,12 @@ export const InteractiveApp: React.FC<InteractiveAppProps> = ({
   const [author, setAuthor] = useState(initialAuthor);
   const [git, setGit] = useState(initialGit);
   const [install, setInstall] = useState(initialInstall);
+
+  const [filesStatus, setFilesStatus] = useState<'pending' | 'active' | 'success' | 'error'>('pending');
+  const [hooksStatus, setHooksStatus] = useState<'pending' | 'active' | 'success' | 'error'>('pending');
+  const [gitStatus, setGitStatus] = useState<'pending' | 'active' | 'success' | 'skip' | 'error'>('pending');
+  const [installStatus, setInstallStatus] = useState<'pending' | 'active' | 'success' | 'skip' | 'error'>('pending');
+  const [errorMessage, setErrorMessage] = useState('');
 
   // Setup the list of steps to show
   const steps: Step[] = [];
@@ -53,50 +62,49 @@ export const InteractiveApp: React.FC<InteractiveAppProps> = ({
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
   const currentStep = steps[currentStepIndex];
 
-  // 0: idle, 1: files generated, 2: hooks run, 3: git init run, 4: install run
-  const [progressStep, setProgressStep] = useState(0);
-
   const handleNext = () => {
     if (currentStepIndex < steps.length - 1) {
       setCurrentStepIndex((prev: number) => prev + 1);
     }
   };
 
-  // Run generation simulation when entering GENERATING step
+  // Run scaffolding when entering GENERATING step
   useEffect(() => {
     if (currentStep === 'GENERATING') {
-      const runSimulation = async () => {
-        // Step 1: Generate files
-        await new Promise(r => setTimeout(r, 800));
-        setProgressStep(1);
-
-        // Step 2: Post scaffold hooks
-        await new Promise(r => setTimeout(r, 600));
-        setProgressStep(2);
-
-        // Step 3: Git init
-        if (git) {
-          await new Promise(r => setTimeout(r, 600));
+      const executeScaffold = async () => {
+        try {
+          await runScaffold({
+            type,
+            projectName: projectName || undefined,
+            description: description || undefined,
+            author: author || undefined,
+            git,
+            install,
+            interactive: true,
+            onProgress: (step, status) => {
+              if (step === 'files' && status !== 'skip') setFilesStatus(status);
+              if (step === 'hooks' && status !== 'skip') setHooksStatus(status);
+              if (step === 'git') setGitStatus(status);
+              if (step === 'install') setInstallStatus(status);
+            },
+          });
+          handleNext();
+        } catch (err) {
+          setErrorMessage(String(err));
         }
-        setProgressStep(3);
-
-        // Step 4: Install dependencies
-        if (install) {
-          await new Promise(r => setTimeout(r, 1200));
-        }
-        setProgressStep(4);
-
-        // Transition to success
-        handleNext();
       };
-      void runSimulation();
+      void executeScaffold();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentStep]);
 
-  // Global shortcuts for Confirm & Success steps
+  // Global shortcuts for Confirm, Error, & Success steps
   useInput((input, key) => {
     if (key.escape) {
+      exit();
+      return;
+    }
+    if (errorMessage && key.return) {
       exit();
       return;
     }
@@ -108,10 +116,26 @@ export const InteractiveApp: React.FC<InteractiveAppProps> = ({
     }
   });
 
-  const projectTypes: SelectItem[] = [
-    { label: 'Microservice (ms) - Bun, Elysia, and Docker', value: 'ms' },
-    { label: 'TypeScript Library (lib) - Minimal configuration', value: 'lib' },
-  ];
+  const projectTypes: SelectItem[] = templatesList.map(t => ({
+    label: `${t.label} (${t.value})`,
+    value: t.value,
+  }));
+
+  const getStatusColor = (status: string) => {
+    if (status === 'success') return 'green';
+    if (status === 'active') return 'violet';
+    if (status === 'skip') return 'gray';
+    if (status === 'error') return 'red';
+    return 'gray';
+  };
+
+  const getStatusSymbol = (status: string) => {
+    if (status === 'success') return '✔';
+    if (status === 'active') return <Spinner type="dots" />;
+    if (status === 'skip') return '🇸';
+    if (status === 'error') return '✖';
+    return '◌';
+  };
 
   return (
     <Box flexDirection="column" margin={1}>
@@ -255,38 +279,49 @@ export const InteractiveApp: React.FC<InteractiveAppProps> = ({
 
         {currentStep === 'GENERATING' && (
           <Box flexDirection="column">
-            <Box marginBottom={1}>
-              <Text color="cyan" bold>
-                Generating Scaffold...
-              </Text>
-            </Box>
+            {errorMessage ? (
+              <Box flexDirection="column" borderStyle="double" borderColor="red" padding={1}>
+                <Box marginBottom={1}>
+                  <Text color="red" bold>
+                    ❌ Scaffolding Error:
+                  </Text>
+                </Box>
+                <Text color="red">{errorMessage}</Text>
+                <Box marginTop={1}>
+                  <Text color="gray">Press Enter to exit.</Text>
+                </Box>
+              </Box>
+            ) : (
+              <Box flexDirection="column">
+                <Box marginBottom={1}>
+                  <Text color="cyan" bold>
+                    Generating Scaffold...
+                  </Text>
+                </Box>
 
-            <Box>
-              <Text color={progressStep > 0 ? 'green' : 'violet'}>
-                {progressStep > 0 ? '✔' : <Spinner type="dots" />} Generating files...
-              </Text>
-            </Box>
+                <Box>
+                  <Text color={getStatusColor(filesStatus)}>{getStatusSymbol(filesStatus)} Generating files...</Text>
+                </Box>
 
-            <Box>
-              <Text color={progressStep > 1 ? 'green' : progressStep === 1 ? 'violet' : 'gray'}>
-                {progressStep > 1 ? '✔' : progressStep === 1 ? <Spinner type="dots" /> : '◌'} Running post-scaffold
-                hooks...
-              </Text>
-            </Box>
+                <Box>
+                  <Text color={getStatusColor(hooksStatus)}>
+                    {getStatusSymbol(hooksStatus)} Running post-scaffold hooks...
+                  </Text>
+                </Box>
 
-            <Box>
-              <Text color={progressStep > 2 ? 'green' : progressStep === 2 ? 'violet' : 'gray'}>
-                {progressStep > 2 ? git ? '✔' : '🇸' : progressStep === 2 ? <Spinner type="dots" /> : '◌'} Initializing
-                git repository...
-              </Text>
-            </Box>
+                <Box>
+                  <Text color={getStatusColor(gitStatus)}>
+                    {getStatusSymbol(gitStatus)} Initializing git repository...
+                  </Text>
+                </Box>
 
-            <Box>
-              <Text color={progressStep > 3 ? 'green' : progressStep === 3 ? 'violet' : 'gray'}>
-                {progressStep > 3 ? install ? '✔' : '🇸' : progressStep === 3 ? <Spinner type="dots" /> : '◌'} Installing
-                dependencies...
-              </Text>
-            </Box>
+                <Box>
+                  <Text color={getStatusColor(installStatus)}>
+                    {getStatusSymbol(installStatus)} Installing dependencies...
+                  </Text>
+                </Box>
+              </Box>
+            )}
           </Box>
         )}
 

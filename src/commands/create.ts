@@ -4,7 +4,7 @@ import { render } from 'ink';
 
 import { Command } from 'commander';
 
-import { runScaffold } from '../services/scaffold';
+import { resolveTemplates, runScaffold } from '../services/scaffold';
 import { InteractiveApp } from '../ui/InteractiveApp';
 
 interface CreateCommandOptions {
@@ -29,6 +29,21 @@ export const createCommand = new Command('create')
   .option('-y, --yes', 'Skip interactive prompts (requires type to be provided)', false)
   .option('--interactive', 'Force interactive mode', false)
   .action(async (type: string | undefined, projectName: string | undefined, options: CreateCommandOptions) => {
+    const templates = resolveTemplates();
+
+    // Verify if provided type matches a valid template
+    if (type) {
+      const template = templates.find(t => t.id === type);
+      if (!template) {
+        console.error(`Error: Unknown project type "${type}".`);
+        console.error('Available types:');
+        for (const t of templates) {
+          console.error(`  - ${t.id} (${t.name}): ${t.description}`);
+        }
+        process.exit(1);
+      }
+    }
+
     // If running in non-interactive mode (--yes), require a type
     if (options.yes && !type) {
       console.error('Error: Project type is required when running in non-interactive mode (--yes).');
@@ -47,6 +62,12 @@ export const createCommand = new Command('create')
         process.exit(1);
       }
 
+      const templatesList = templates.map(t => ({
+        value: t.id,
+        label: t.name,
+        description: t.description,
+      }));
+
       const { waitUntilExit } = render(
         React.createElement(InteractiveApp, {
           initialType: type,
@@ -55,18 +76,24 @@ export const createCommand = new Command('create')
           initialAuthor: options.author,
           initialGit: options.git,
           initialInstall: options.install,
+          templatesList,
         })
       );
       await waitUntilExit();
     } else {
-      await runScaffold({
-        type,
-        projectName,
-        description: options.description,
-        author: options.author,
-        git: options.git !== false,
-        install: options.install !== false,
-        interactive: false,
-      });
+      try {
+        await runScaffold({
+          type,
+          projectName,
+          description: options.description,
+          author: options.author,
+          git: options.git !== false,
+          install: options.install !== false,
+          interactive: false,
+        });
+      } catch (err) {
+        console.error(`❌ Scaffolding failed: ${String(err)}`);
+        process.exit(1);
+      }
     }
   });
