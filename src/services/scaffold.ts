@@ -77,12 +77,13 @@ export interface ScaffoldOptions {
  */
 export function resolveTemplates(): TemplateInfo[] {
   const lookupDirs = [
+    process.env.SCL_TEMPLATES_DIR ? path.resolve(process.env.SCL_TEMPLATES_DIR) : null,
     path.resolve(process.cwd(), '.scl-templates'),
     path.resolve(os.homedir(), '.scl-cli/templates'),
     path.resolve(import.meta.dir, '../../../templates'), // root templates folder (outside cli tool)
     path.resolve(import.meta.dir, '../../templates'), // fallback to built-in CLI templates (dev mode)
     path.resolve(import.meta.dir, '../templates'), // fallback to built-in CLI templates (built mode)
-  ];
+  ].filter((dir): dir is string => dir !== null);
 
   const templates: TemplateInfo[] = [];
   const seenIds = new Set<string>();
