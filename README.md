@@ -8,6 +8,7 @@
 
 * **Interactive Ink TUI:** Rich terminal user interface with step-by-step guidance, spinner animations, and error handling.
 * **Remote Git Templates:** Pass a Git repository URL (e.g. GitHub repo) directly as the template type. The CLI automatically clones, caches, and parses its configuration.
+* **Pre-Configured Remote Registry:** Features a built-in template registry. If a registry alias (like `hono-microservice`) is specified and not found locally, the CLI dynamically resolves and clones it from its registered Git URL. When running in interactive mode, registry templates that are not yet downloaded show up in the dropdown as `(Remote)` and are downloaded on-the-fly when selected.
 * **Dynamic Manifest Prompts:** Templates can declare custom prompts (like asking for an `entity` name) in a `template.json` file. The CLI parses these and injects them as interactive steps or matches them to CLI variables.
 * **Built-in Case Helpers:** Supports Handlebars case transformations for paths, filenames, and file content:
   * `{{pascalCase var}}` (e.g. `GreetingController`, `GreetingInMemoryRepository`)
