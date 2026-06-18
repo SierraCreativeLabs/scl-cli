@@ -5,6 +5,29 @@ import os from 'os';
 import * as path from 'path';
 import { z } from 'zod';
 
+// Register Handlebars helpers for case conversions
+Handlebars.registerHelper('kebabCase', (str: string) => {
+  if (!str) return '';
+  return str.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+});
+
+Handlebars.registerHelper('camelCase', (str: string) => {
+  if (!str) return '';
+  const camel = str.replace(/[-_]([a-z])/g, (_match: string, c: string) => c.toUpperCase());
+  return camel.charAt(0).toLowerCase() + camel.slice(1);
+});
+
+Handlebars.registerHelper('pascalCase', (str: string) => {
+  if (!str) return '';
+  const camel = str.replace(/[-_]([a-z])/g, (_match: string, c: string) => c.toUpperCase());
+  return camel.charAt(0).toUpperCase() + camel.slice(1);
+});
+
+Handlebars.registerHelper('lowerCase', (str: string) => {
+  if (!str) return '';
+  return str.toLowerCase();
+});
+
 export const TemplatePromptSchema = z.object({
   name: z.string(),
   type: z.enum(['text', 'number', 'select', 'toggle']),
@@ -56,6 +79,7 @@ export function resolveTemplates(): TemplateInfo[] {
   const lookupDirs = [
     path.resolve(process.cwd(), '.scl-templates'),
     path.resolve(os.homedir(), '.scl-cli/templates'),
+    path.resolve(import.meta.dir, '../../../templates'), // root templates folder (outside cli tool)
     path.resolve(import.meta.dir, '../../templates'), // fallback to built-in CLI templates (dev mode)
     path.resolve(import.meta.dir, '../templates'), // fallback to built-in CLI templates (built mode)
   ];
