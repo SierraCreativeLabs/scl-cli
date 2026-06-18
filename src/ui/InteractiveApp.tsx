@@ -20,6 +20,7 @@ export interface InteractiveAppProps {
   initialGit?: boolean;
   initialInstall?: boolean;
   templatesList: { value: string; label: string; description: string }[];
+  customVariables?: Record<string, unknown>;
 }
 
 type Step =
@@ -43,6 +44,7 @@ export const InteractiveApp: React.FC<InteractiveAppProps> = ({
   initialGit = true,
   initialInstall = true,
   templatesList,
+  customVariables,
 }) => {
   const { exit } = useApp();
 
@@ -96,6 +98,7 @@ export const InteractiveApp: React.FC<InteractiveAppProps> = ({
             git,
             install,
             interactive: true,
+            customVariables,
             onProgress: (step, status) => {
               if (step === 'files' && status !== 'skip') setFilesStatus(status);
               if (step === 'hooks' && status !== 'skip') setHooksStatus(status);

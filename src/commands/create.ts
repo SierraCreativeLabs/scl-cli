@@ -14,6 +14,7 @@ interface CreateCommandOptions {
   install: boolean;
   yes: boolean;
   interactive: boolean;
+  var?: string[];
 }
 
 export const createCommand = new Command('create')
@@ -29,6 +30,15 @@ export const createCommand = new Command('create')
   .option('--no-install', 'Skip dependency installation')
   .option('-y, --yes', 'Skip interactive prompts (requires type to be provided)', false)
   .option('--interactive', 'Force interactive mode', false)
+  .option(
+    '--var <key=value>',
+    'Custom template variables (can be specified multiple times)',
+    (val, memo: string[]) => {
+      memo.push(val);
+      return memo;
+    },
+    []
+  )
   .action(
     async (
       type: string | undefined,
@@ -48,6 +58,19 @@ export const createCommand = new Command('create')
             console.error(`  - ${t.id} (${t.name}): ${t.description}`);
           }
           process.exit(1);
+        }
+      }
+
+      // Parse custom variables (e.g. --var entity=User)
+      const customVariables: Record<string, string> = {};
+      if (options.var) {
+        for (const pair of options.var) {
+          const index = pair.indexOf('=');
+          if (index !== -1) {
+            const key = pair.slice(0, index).trim();
+            const val = pair.slice(index + 1).trim();
+            customVariables[key] = val;
+          }
         }
       }
 
@@ -85,6 +108,7 @@ export const createCommand = new Command('create')
             initialGit: options.git,
             initialInstall: options.install,
             templatesList,
+            customVariables,
           })
         );
         await waitUntilExit();
@@ -99,6 +123,7 @@ export const createCommand = new Command('create')
             git: options.git !== false,
             install: options.install !== false,
             interactive: false,
+            customVariables,
           });
         } catch (err) {
           console.error(`❌ Scaffolding failed: ${String(err)}`);
