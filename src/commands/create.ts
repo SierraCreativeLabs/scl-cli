@@ -4,7 +4,7 @@ import { render } from 'ink';
 
 import { Command } from 'commander';
 
-import { resolveTemplates, runScaffold, isGitUrl, downloadGitTemplate, loadTemplateFromPath } from '../services/scaffold';
+import { resolveTemplates, runScaffold, isGitUrl, downloadGitTemplate, loadTemplateFromPath, TEMPLATE_REGISTRY } from '../services/scaffold';
 import { InteractiveApp } from '../ui/InteractiveApp';
 
 interface CreateCommandOptions {
@@ -48,6 +48,15 @@ export const createCommand = new Command('create')
     ) => {
       let templates = resolveTemplates();
       let templateType = type;
+
+      // Resolve registry template alias if not already cached/cloned locally
+      if (type && !isGitUrl(type) && !templates.some(t => t.id === type)) {
+        const registryMatch = TEMPLATE_REGISTRY.find(r => r.id === type);
+        if (registryMatch) {
+          console.log(`📥 Registry alias "${type}" matches remote template: ${registryMatch.gitUrl}`);
+          type = registryMatch.gitUrl;
+        }
+      }
 
       // Handle Git URLs for remote templates
       if (type && isGitUrl(type)) {

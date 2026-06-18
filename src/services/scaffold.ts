@@ -94,6 +94,22 @@ export function loadTemplateFromPath(templatePath: string): TemplateInfo {
   };
 }
 
+export interface RegistryTemplate {
+  id: string;
+  name: string;
+  description: string;
+  gitUrl: string;
+}
+
+export const TEMPLATE_REGISTRY: RegistryTemplate[] = [
+  {
+    id: 'hono-microservice',
+    name: 'Hono Microservice',
+    description: 'A high-performance HTTP microservice using Bun and Hono with Hexagonal Architecture',
+    gitUrl: 'https://github.com/Sierra-Creative-Labs/hono-microservice-template.git',
+  },
+];
+
 /**
  * Scans directories for templates containing template.json configs.
  */
@@ -111,6 +127,7 @@ export function resolveTemplates(): TemplateInfo[] {
   const templates: TemplateInfo[] = [];
   const seenIds = new Set<string>();
 
+  // 1. Scan physical directories
   for (const dir of lookupDirs) {
     if (!fs.existsSync(dir)) continue;
 
@@ -132,6 +149,24 @@ export function resolveTemplates(): TemplateInfo[] {
       }
     } catch {
       // Skip unreadable directories
+    }
+  }
+
+  // 2. Add remote registry templates that are not yet downloaded
+  for (const reg of TEMPLATE_REGISTRY) {
+    if (!seenIds.has(reg.id)) {
+      seenIds.add(reg.id);
+      templates.push({
+        id: reg.id,
+        name: `${reg.name} (Remote)`,
+        description: reg.description,
+        path: reg.gitUrl, // flagged as a remote Git URL
+        manifest: {
+          name: reg.name,
+          description: reg.description,
+          prompts: [], // prompts will load once downloaded
+        },
+      });
     }
   }
 
@@ -268,9 +303,19 @@ export function generateFiles(
  */
 export async function runScaffold(options: ScaffoldOptions): Promise<void> {
   const templates = resolveTemplates();
-  const selectedTemplate = templates.find(t => t.id === options.type);
+  let selectedTemplate = templates.find(t => t.id === options.type);
   if (!selectedTemplate) {
     throw new Error(`Scaffold template not found for type: "${options.type ?? ''}"`);
+  }
+
+  // If the template path is a Git URL, download it first
+  if (isGitUrl(selectedTemplate.path)) {
+    try {
+      const cachedPath = await downloadGitTemplate(selectedTemplate.path);
+      selectedTemplate = loadTemplateFromPath(cachedPath);
+    } catch (err) {
+      throw new Error(`Failed to download remote template "${selectedTemplate.name}": ${String(err)}`, { cause: err });
+    }
   }
 
   const targetDirName = options.projectName ?? `my-${selectedTemplate.id}-project`;

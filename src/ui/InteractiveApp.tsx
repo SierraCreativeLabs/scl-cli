@@ -9,7 +9,7 @@ import { Select } from '../components/Select';
 import type { SelectItem } from '../components/Select';
 import { TextInput } from '../components/TextInput';
 import { Toggle } from '../components/Toggle';
-import { resolveTemplates, runScaffold } from '../services/scaffold';
+import { resolveTemplates, runScaffold, isGitUrl, downloadGitTemplate } from '../services/scaffold';
 
 export interface InteractiveAppProps {
   initialType?: string;
@@ -64,6 +64,31 @@ export const InteractiveApp: React.FC<InteractiveAppProps> = ({
   const [gitStatus, setGitStatus] = useState<'pending' | 'active' | 'success' | 'skip' | 'error'>('pending');
   const [installStatus, setInstallStatus] = useState<'pending' | 'active' | 'success' | 'skip' | 'error'>('pending');
   const [errorMessage, setErrorMessage] = useState('');
+
+  // Remote template downloading state
+  const [isDownloading, setIsDownloading] = useState(false);
+  const [downloadError, setDownloadError] = useState('');
+
+  // Trigger remote template download if selected template is remote
+  useEffect(() => {
+    if (type && isDownloading) {
+      const performDownload = async () => {
+        try {
+          const selected = templates.find(t => t.id === type);
+          if (selected && isGitUrl(selected.path)) {
+            await downloadGitTemplate(selected.path);
+          }
+          setIsDownloading(false);
+          handleNext();
+        } catch (err) {
+          setDownloadError(String(err));
+          setIsDownloading(false);
+        }
+      };
+      void performDownload();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [type, isDownloading]);
 
   // Load custom prompts dynamically from the selected template's manifest
   const templates = resolveTemplates();
@@ -139,7 +164,7 @@ export const InteractiveApp: React.FC<InteractiveAppProps> = ({
       exit();
       return;
     }
-    if (errorMessage && key.return) {
+    if ((errorMessage || downloadError) && key.return) {
       exit();
       return;
     }
@@ -204,249 +229,276 @@ export const InteractiveApp: React.FC<InteractiveAppProps> = ({
 
       {/* Main Interactive Screen */}
       <Box flexDirection="column" minHeight={6}>
-        {currentStep === 'TYPE' && (
-          <Box flexDirection="column">
-            <Text color="gray">Use arrow keys (↑/↓) to select, press Enter to continue:</Text>
-            <Select
-              items={projectTypes}
-              onSelect={(item: SelectItem) => {
-                setType(item.value);
-                handleNext();
-              }}
-            />
-          </Box>
-        )}
-
-        {currentStep === 'NAME' && (
-          <Box flexDirection="column">
-            <Text color="gray">Enter project name / directory name (default: my-{type || 'ms'}-project):</Text>
-            <Box marginY={1}>
-              <TextInput
-                value={projectName}
-                placeholder={`my-${type || 'ms'}-project`}
-                onChange={setProjectName}
-                onSubmit={(val: string) => {
-                  const finalName = val.trim() || `my-${type || 'ms'}-project`;
-                  setProjectName(finalName);
-                  handleNext();
-                }}
-              />
-            </Box>
-          </Box>
-        )}
-
-        {currentStep === 'PATH' && (
-          <Box flexDirection="column">
-            <Text color="gray">{"Enter target installation path (default: current directory './'):"}</Text>
-            <Box marginY={1}>
-              <TextInput
-                value={targetPath}
-                placeholder="./"
-                onChange={setTargetPath}
-                onSubmit={(val: string) => {
-                  const finalPath = val.trim() || './';
-                  setTargetPath(finalPath);
-                  handleNext();
-                }}
-              />
-            </Box>
-          </Box>
-        )}
-
-        {currentStep === 'DESCRIPTION' && (
-          <Box flexDirection="column">
-            <Text color="gray">Enter project description (optional):</Text>
-            <Box marginY={1}>
-              <TextInput
-                value={description}
-                placeholder="My service/library description"
-                onChange={setDescription}
-                onSubmit={handleNext}
-              />
-            </Box>
-          </Box>
-        )}
-
-        {currentStep === 'AUTHOR' && (
-          <Box flexDirection="column">
-            <Text color="gray">Enter author name (optional):</Text>
-            <Box marginY={1}>
-              <TextInput value={author} placeholder="Developer" onChange={setAuthor} onSubmit={handleNext} />
-            </Box>
-          </Box>
-        )}
-
-        {currentStep?.startsWith('PROMPT_') && (() => {
-          const promptName = currentStep.replace('PROMPT_', '');
-          const promptObj = customPrompts.find(p => p.name === promptName);
-          if (!promptObj) return null;
-
-          return (
-            <Box flexDirection="column">
-              <Text color="gray">{promptObj.message} (default: {String(promptObj.default)}):</Text>
-              <Box marginY={1}>
-                <TextInput
-                  value={String(promptsState[promptName] ?? '')}
-                  placeholder={String(promptObj.default)}
-                  onChange={(val: string) => {
-                    setPromptsState(prev => ({ ...prev, [promptName]: val }));
-                  }}
-                  onSubmit={(val: string) => {
-                    const finalVal = val.trim() || String(promptObj.default);
-                    setPromptsState(prev => ({ ...prev, [promptName]: finalVal }));
-                    handleNext();
-                  }}
-                />
-              </Box>
-            </Box>
-          );
-        })()}
-
-        {currentStep === 'GIT' && (
-          <Box flexDirection="column">
-            <Text color="gray">
-              Do you want to initialize a Git repository? (Use left/right arrows to toggle, Enter to confirm)
+        {isDownloading ? (
+          <Box flexDirection="column" padding={1}>
+            <Text color="cyan">
+              <Spinner type="dots" /> 📥 Downloading and caching remote template: <Text color="violet" bold>{type}</Text>...
             </Text>
-            <Toggle value={git} onChange={setGit} onSubmit={handleNext} />
           </Box>
-        )}
-
-        {currentStep === 'INSTALL' && (
-          <Box flexDirection="column">
-            <Text color="gray">Do you want to install dependencies automatically?</Text>
-            <Toggle value={install} onChange={setInstall} onSubmit={handleNext} />
-          </Box>
-        )}
-
-        {currentStep === 'CONFIRM' && (
-          <Box flexDirection="column" borderStyle="single" borderColor="cyan" padding={1}>
+        ) : downloadError ? (
+          <Box flexDirection="column" borderStyle="double" borderColor="red" padding={1}>
             <Box marginBottom={1}>
-              <Text color="cyan" bold>
-                Configuration Summary:
+              <Text color="red" bold>
+                ❌ Template Download Error:
               </Text>
             </Box>
-            <Text>
-              Type:{' '}
-              <Text color="violet" bold>
-                {type}
-              </Text>
-            </Text>
-            <Text>
-              Name:{' '}
-              <Text color="violet" bold>
-                {projectName || `my-${type}-project`}
-              </Text>
-            </Text>
-            <Text>
-              Target Path: <Text color="violet">{targetPath || './'}</Text>
-            </Text>
-            <Text>
-              Description: <Text color="violet">{description || '(none)'}</Text>
-            </Text>
-            <Text>
-              Author: <Text color="violet">{author || '(none)'}</Text>
-            </Text>
-            {customPrompts.map(p => (
-              <Text key={p.name}>
-                {p.name}: <Text color="violet">{String(promptsState[p.name] ?? p.default)}</Text>
-              </Text>
-            ))}
-            <Text>
-              Git Init: <Text color="violet">{git ? 'Yes' : 'No'}</Text>
-            </Text>
-            <Text>
-              Install: <Text color="violet">{install ? 'Yes' : 'No'}</Text>
-            </Text>
-
-            <Box marginTop={1}>
-              <Text color="green" bold>
-                Press Enter to generate, or Esc to exit.
-              </Text>
-            </Box>
-          </Box>
-        )}
-
-        {currentStep === 'GENERATING' && (
-          <Box flexDirection="column">
-            {errorMessage ? (
-              <Box flexDirection="column" borderStyle="double" borderColor="red" padding={1}>
-                <Box marginBottom={1}>
-                  <Text color="red" bold>
-                    ❌ Scaffolding Error:
-                  </Text>
-                </Box>
-                <Text color="red">{errorMessage}</Text>
-                <Box marginTop={1}>
-                  <Text color="gray">Press Enter to exit.</Text>
-                </Box>
-              </Box>
-            ) : (
-              <Box flexDirection="column">
-                <Box marginBottom={1}>
-                  <Text color="cyan" bold>
-                    Generating Scaffold...
-                  </Text>
-                </Box>
-
-                <Box>
-                  <Text color={getStatusColor(filesStatus)}>{getStatusSymbol(filesStatus)} Generating files...</Text>
-                </Box>
-
-                <Box>
-                  <Text color={getStatusColor(hooksStatus)}>
-                    {getStatusSymbol(hooksStatus)} Running post-scaffold hooks...
-                  </Text>
-                </Box>
-
-                <Box>
-                  <Text color={getStatusColor(gitStatus)}>
-                    {getStatusSymbol(gitStatus)} Initializing git repository...
-                  </Text>
-                </Box>
-
-                <Box>
-                  <Text color={getStatusColor(installStatus)}>
-                    {getStatusSymbol(installStatus)} Installing dependencies...
-                  </Text>
-                </Box>
-              </Box>
-            )}
-          </Box>
-        )}
-
-        {currentStep === 'SUCCESS' && (
-          <Box flexDirection="column" padding={1} borderStyle="round" borderColor="green">
-            <Text color="green" bold>
-              ✔ Success! Project scaffolded successfully.
-            </Text>
-            <Box marginTop={1}>
-              <Text>
-                Your project{' '}
-                <Text color="cyan" bold>
-                  {projectName || `my-${type}-project`}
-                </Text>{' '}
-                has been created.
-              </Text>
-            </Box>
-            <Box marginTop={1}>
-              <Text bold>Next steps:</Text>
-            </Box>
-            <Text color="violet"> cd {projectName || `my-${type}-project`}</Text>
-            <Text color="violet"> bun dev</Text>
-
-            <Box marginTop={1}>
-              <Text color="gray">Documentation: </Text>
-              <Link url="https://sierra-creative-labs.github.io/scl-cli">
-                <Text color="cyan" underline>
-                  sierra-creative-labs.github.io/scl-cli
-                </Text>
-              </Link>
-            </Box>
-
+            <Text color="red">{downloadError}</Text>
             <Box marginTop={1}>
               <Text color="gray">Press Enter to exit.</Text>
             </Box>
           </Box>
+        ) : (
+          <>
+            {currentStep === 'TYPE' && (
+              <Box flexDirection="column">
+                <Text color="gray">Use arrow keys (↑/↓) to select, press Enter to continue:</Text>
+                <Select
+                  items={projectTypes}
+                  onSelect={(item: SelectItem) => {
+                    setType(item.value);
+                    const selected = templates.find(t => t.id === item.value);
+                    if (selected && isGitUrl(selected.path)) {
+                      setIsDownloading(true);
+                    } else {
+                      handleNext();
+                    }
+                  }}
+                />
+              </Box>
+            )}
+
+            {currentStep === 'NAME' && (
+              <Box flexDirection="column">
+                <Text color="gray">Enter project name / directory name (default: my-{type || 'ms'}-project):</Text>
+                <Box marginY={1}>
+                  <TextInput
+                    value={projectName}
+                    placeholder={`my-${type || 'ms'}-project`}
+                    onChange={setProjectName}
+                    onSubmit={(val: string) => {
+                      const finalName = val.trim() || `my-${type || 'ms'}-project`;
+                      setProjectName(finalName);
+                      handleNext();
+                    }}
+                  />
+                </Box>
+              </Box>
+            )}
+
+            {currentStep === 'PATH' && (
+              <Box flexDirection="column">
+                <Text color="gray">{"Enter target installation path (default: current directory './'):"}</Text>
+                <Box marginY={1}>
+                  <TextInput
+                    value={targetPath}
+                    placeholder="./"
+                    onChange={setTargetPath}
+                    onSubmit={(val: string) => {
+                      const finalPath = val.trim() || './';
+                      setTargetPath(finalPath);
+                      handleNext();
+                    }}
+                  />
+                </Box>
+              </Box>
+            )}
+
+            {currentStep === 'DESCRIPTION' && (
+              <Box flexDirection="column">
+                <Text color="gray">Enter project description (optional):</Text>
+                <Box marginY={1}>
+                  <TextInput
+                    value={description}
+                    placeholder="My service/library description"
+                    onChange={setDescription}
+                    onSubmit={handleNext}
+                  />
+                </Box>
+              </Box>
+            )}
+
+            {currentStep === 'AUTHOR' && (
+              <Box flexDirection="column">
+                <Text color="gray">Enter author name (optional):</Text>
+                <Box marginY={1}>
+                  <TextInput value={author} placeholder="Developer" onChange={setAuthor} onSubmit={handleNext} />
+                </Box>
+              </Box>
+            )}
+
+            {currentStep?.startsWith('PROMPT_') && (() => {
+              const promptName = currentStep.replace('PROMPT_', '');
+              const promptObj = customPrompts.find(p => p.name === promptName);
+              if (!promptObj) return null;
+
+              return (
+                <Box flexDirection="column">
+                  <Text color="gray">{promptObj.message} (default: {String(promptObj.default)}):</Text>
+                  <Box marginY={1}>
+                    <TextInput
+                      value={String(promptsState[promptName] ?? '')}
+                      placeholder={String(promptObj.default)}
+                      onChange={(val: string) => {
+                        setPromptsState(prev => ({ ...prev, [promptName]: val }));
+                      }}
+                      onSubmit={(val: string) => {
+                        const finalVal = val.trim() || String(promptObj.default);
+                        setPromptsState(prev => ({ ...prev, [promptName]: finalVal }));
+                        handleNext();
+                      }}
+                    />
+                  </Box>
+                </Box>
+              );
+            })()}
+
+            {currentStep === 'GIT' && (
+              <Box flexDirection="column">
+                <Text color="gray">
+                  Do you want to initialize a Git repository? (Use left/right arrows to toggle, Enter to confirm)
+                </Text>
+                <Toggle value={git} onChange={setGit} onSubmit={handleNext} />
+              </Box>
+            )}
+
+            {currentStep === 'INSTALL' && (
+              <Box flexDirection="column">
+                <Text color="gray">Do you want to install dependencies automatically?</Text>
+                <Toggle value={install} onChange={setInstall} onSubmit={handleNext} />
+              </Box>
+            )}
+
+            {currentStep === 'CONFIRM' && (
+              <Box flexDirection="column" borderStyle="single" borderColor="cyan" padding={1}>
+                <Box marginBottom={1}>
+                  <Text color="cyan" bold>
+                    Configuration Summary:
+                  </Text>
+                </Box>
+                <Text>
+                  Type:{' '}
+                  <Text color="violet" bold>
+                    {type}
+                  </Text>
+                </Text>
+                <Text>
+                  Name:{' '}
+                  <Text color="violet" bold>
+                    {projectName || `my-${type}-project`}
+                  </Text>
+                </Text>
+                <Text>
+                  Target Path: <Text color="violet">{targetPath || './'}</Text>
+                </Text>
+                <Text>
+                  Description: <Text color="violet">{description || '(none)'}</Text>
+                </Text>
+                <Text>
+                  Author: <Text color="violet">{author || '(none)'}</Text>
+                </Text>
+                {customPrompts.map(p => (
+                  <Text key={p.name}>
+                    {p.name}: <Text color="violet">{String(promptsState[p.name] ?? p.default)}</Text>
+                  </Text>
+                ))}
+                <Text>
+                  Git Init: <Text color="violet">{git ? 'Yes' : 'No'}</Text>
+                </Text>
+                <Text>
+                  Install: <Text color="violet">{install ? 'Yes' : 'No'}</Text>
+                </Text>
+
+                <Box marginTop={1}>
+                  <Text color="green" bold>
+                    Press Enter to generate, or Esc to exit.
+                  </Text>
+                </Box>
+              </Box>
+            )}
+
+            {currentStep === 'GENERATING' && (
+              <Box flexDirection="column">
+                {errorMessage ? (
+                  <Box flexDirection="column" borderStyle="double" borderColor="red" padding={1}>
+                    <Box marginBottom={1}>
+                      <Text color="red" bold>
+                        ❌ Scaffolding Error:
+                      </Text>
+                    </Box>
+                    <Text color="red">{errorMessage}</Text>
+                    <Box marginTop={1}>
+                      <Text color="gray">Press Enter to exit.</Text>
+                    </Box>
+                  </Box>
+                ) : (
+                  <Box flexDirection="column">
+                    <Box marginBottom={1}>
+                      <Text color="cyan" bold>
+                        Generating Scaffold...
+                      </Text>
+                    </Box>
+
+                    <Box>
+                      <Text color={getStatusColor(filesStatus)}>{getStatusSymbol(filesStatus)} Generating files...</Text>
+                    </Box>
+
+                    <Box>
+                      <Text color={getStatusColor(hooksStatus)}>
+                        {getStatusSymbol(hooksStatus)} Running post-scaffold hooks...
+                      </Text>
+                    </Box>
+
+                    <Box>
+                      <Text color={getStatusColor(gitStatus)}>
+                        {getStatusSymbol(gitStatus)} Initializing git repository...
+                      </Text>
+                    </Box>
+
+                    <Box>
+                      <Text color={getStatusColor(installStatus)}>
+                        {getStatusSymbol(installStatus)} Installing dependencies...
+                      </Text>
+                    </Box>
+                  </Box>
+                )}
+              </Box>
+            )}
+
+            {currentStep === 'SUCCESS' && (
+              <Box flexDirection="column" padding={1} borderStyle="round" borderColor="green">
+                <Text color="green" bold>
+                  ✔ Success! Project scaffolded successfully.
+                </Text>
+                <Box marginTop={1}>
+                  <Text>
+                    Your project{' '}
+                    <Text color="cyan" bold>
+                      {projectName || `my-${type}-project`}
+                    </Text>{' '}
+                    has been created.
+                  </Text>
+                </Box>
+                <Box marginTop={1}>
+                  <Text bold>Next steps:</Text>
+                </Box>
+                <Text color="violet"> cd {projectName || `my-${type}-project`}</Text>
+                <Text color="violet"> bun dev</Text>
+
+                <Box marginTop={1}>
+                  <Text color="gray">Documentation: </Text>
+                  <Link url="https://sierra-creative-labs.github.io/scl-cli">
+                    <Text color="cyan" underline>
+                      sierra-creative-labs.github.io/scl-cli
+                    </Text>
+                  </Link>
+                </Box>
+
+                <Box marginTop={1}>
+                  <Text color="gray">Press Enter to exit.</Text>
+                </Box>
+              </Box>
+            )}
+          </>
         )}
       </Box>
     </Box>
