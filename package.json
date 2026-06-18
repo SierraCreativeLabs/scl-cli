@@ -1,14 +1,22 @@
 {
   "name": "scl-cli",
+  "version": "0.1.0",
+  "description": "Sierra Creative Labs Scaffolding CLI for rapid project generation",
+  "author": "Sierra Creative Labs",
+  "license": "UNLICENSED",
   "module": "src/index.ts",
   "type": "module",
   "bin": {
     "scl-cli": "./dist/index.js"
   },
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "dev": "bun run src/index.ts",
     "build": "bun build ./src/index.ts --outfile=./dist/index.js --target=bun --packages=external && chmod +x ./dist/index.js",
-    "prepare": "husky"
+    "prepare": "husky",
+    "prepublishOnly": "bun run build"
   },
   "devDependencies": {
     "@eslint/js": "^9.20.0",
