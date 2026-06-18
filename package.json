@@ -1,5 +1,5 @@
 {
-  "name": "scl-cli",
+  "name": "@sierracreativelabs/scl-cli",
   "version": "0.1.0",
   "description": "Sierra Creative Labs Scaffolding CLI for rapid project generation",
   "author": "Sierra Creative Labs",
@@ -7,7 +7,7 @@
   "module": "src/index.ts",
   "type": "module",
   "bin": {
-    "scl-cli": "./dist/index.js"
+    "scl-cli": "dist/index.js"
   },
   "files": [
     "dist"
