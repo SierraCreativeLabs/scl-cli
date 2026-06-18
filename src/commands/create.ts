@@ -4,7 +4,7 @@ import { render } from 'ink';
 
 import { Command } from 'commander';
 
-import { resolveTemplates, runScaffold } from '../services/scaffold';
+import { resolveTemplates, runScaffold, isGitUrl, downloadGitTemplate, loadTemplateFromPath } from '../services/scaffold';
 import { InteractiveApp } from '../ui/InteractiveApp';
 
 interface CreateCommandOptions {
@@ -46,13 +46,30 @@ export const createCommand = new Command('create')
       targetPath: string | undefined,
       options: CreateCommandOptions
     ) => {
-      const templates = resolveTemplates();
+      let templates = resolveTemplates();
+      let templateType = type;
+
+      // Handle Git URLs for remote templates
+      if (type && isGitUrl(type)) {
+        console.log(`📥 Cloning/updating remote git template: ${type}...`);
+        try {
+          const cachedPath = await downloadGitTemplate(type);
+          const templateInfo = loadTemplateFromPath(cachedPath);
+          templateType = templateInfo.id;
+          // Re-resolve templates to include the newly cached template
+          templates = resolveTemplates();
+          console.log(`✓ Template loaded: "${templateInfo.name}" (${templateInfo.id})`);
+        } catch (err) {
+          console.error(`❌ Failed to download git template: ${String(err)}`);
+          process.exit(1);
+        }
+      }
 
       // Verify if provided type matches a valid template
-      if (type) {
-        const template = templates.find(t => t.id === type);
+      if (templateType) {
+        const template = templates.find(t => t.id === templateType);
         if (!template) {
-          console.error(`Error: Unknown project type "${type}".`);
+          console.error(`Error: Unknown project type "${templateType}".`);
           console.error('Available types:');
           for (const t of templates) {
             console.error(`  - ${t.id} (${t.name}): ${t.description}`);
@@ -75,7 +92,7 @@ export const createCommand = new Command('create')
       }
 
       // If running in non-interactive mode (--yes), require a type
-      if (options.yes && !type) {
+      if (options.yes && !templateType) {
         console.error('Error: Project type is required when running in non-interactive mode (--yes).');
         process.exit(1);
       }
@@ -100,7 +117,7 @@ export const createCommand = new Command('create')
 
         const { waitUntilExit } = render(
           React.createElement(InteractiveApp, {
-            initialType: type,
+            initialType: templateType,
             initialProjectName: projectName,
             initialTargetPath: targetPath,
             initialDescription: options.description,
@@ -115,7 +132,7 @@ export const createCommand = new Command('create')
       } else {
         try {
           await runScaffold({
-            type,
+            type: templateType,
             projectName,
             targetPath,
             description: options.description,

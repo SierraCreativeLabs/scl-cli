@@ -73,12 +73,35 @@ export interface ScaffoldOptions {
 }
 
 /**
+ * Loads and validates a template from a specific directory path.
+ */
+export function loadTemplateFromPath(templatePath: string): TemplateInfo {
+  const manifestPath = path.join(templatePath, 'template.json');
+  if (!fs.existsSync(manifestPath)) {
+    throw new Error(`Invalid template: template.json not found at "${templatePath}"`);
+  }
+  const content = fs.readFileSync(manifestPath, 'utf8');
+  const raw: unknown = JSON.parse(content);
+  const manifest = TemplateManifestSchema.parse(raw);
+  const id = manifest.alias ?? path.basename(templatePath);
+
+  return {
+    id,
+    name: manifest.name,
+    description: manifest.description,
+    path: templatePath,
+    manifest,
+  };
+}
+
+/**
  * Scans directories for templates containing template.json configs.
  */
 export function resolveTemplates(): TemplateInfo[] {
   const lookupDirs = [
     process.env.SCL_TEMPLATES_DIR ? path.resolve(process.env.SCL_TEMPLATES_DIR) : null,
     path.resolve(process.cwd(), '.scl-templates'),
+    path.resolve(os.homedir(), '.scl-cli/cache/templates'), // git cache
     path.resolve(os.homedir(), '.scl-cli/templates'),
     path.resolve(import.meta.dir, '../../../templates'), // root templates folder (outside cli tool)
     path.resolve(import.meta.dir, '../../templates'), // fallback to built-in CLI templates (dev mode)
@@ -97,24 +120,11 @@ export function resolveTemplates(): TemplateInfo[] {
         if (!child.isDirectory()) continue;
 
         const templatePath = path.join(dir, child.name);
-        const manifestPath = path.join(templatePath, 'template.json');
-        if (!fs.existsSync(manifestPath)) continue;
-
         try {
-          const content = fs.readFileSync(manifestPath, 'utf8');
-          const raw: unknown = JSON.parse(content);
-          const manifest = TemplateManifestSchema.parse(raw);
-          const id = manifest.alias ?? child.name;
-
-          if (!seenIds.has(id)) {
-            seenIds.add(id);
-            templates.push({
-              id,
-              name: manifest.name,
-              description: manifest.description,
-              path: templatePath,
-              manifest,
-            });
+          const tInfo = loadTemplateFromPath(templatePath);
+          if (!seenIds.has(tInfo.id)) {
+            seenIds.add(tInfo.id);
+            templates.push(tInfo);
           }
         } catch {
           // Skip individual invalid template folders
@@ -127,6 +137,48 @@ export function resolveTemplates(): TemplateInfo[] {
 
   return templates;
 }
+
+/**
+ * Checks if a string looks like a Git URL.
+ */
+export function isGitUrl(str: string): boolean {
+  return (
+    str.startsWith('http://') ||
+    str.startsWith('https://') ||
+    str.startsWith('git@') ||
+    str.startsWith('ssh://') ||
+    str.endsWith('.git')
+  );
+}
+
+/**
+ * Downloads a git repository containing a template to the local cache.
+ */
+export async function downloadGitTemplate(url: string): Promise<string> {
+  const cacheDir = path.resolve(os.homedir(), '.scl-cli/cache/templates');
+  if (!fs.existsSync(cacheDir)) {
+    fs.mkdirSync(cacheDir, { recursive: true });
+  }
+
+  const sanitizedFolderName = url.replace(/[^a-zA-Z0-9]/g, '-');
+  const repoCachePath = path.join(cacheDir, sanitizedFolderName);
+
+  if (fs.existsSync(repoCachePath)) {
+    try {
+      // Try updating via git pull
+      await runCommand('git', ['pull'], repoCachePath);
+      return repoCachePath;
+    } catch {
+      // If pull fails, clean up and clone fresh
+      fs.rmSync(repoCachePath, { recursive: true, force: true });
+    }
+  }
+
+  // Clone fresh
+  await runCommand('git', ['clone', url, repoCachePath], cacheDir);
+  return repoCachePath;
+}
+
 
 /**
  * Runs a command in a child process, ignoring its output streams.
