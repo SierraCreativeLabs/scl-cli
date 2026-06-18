@@ -106,7 +106,7 @@ export const TEMPLATE_REGISTRY: RegistryTemplate[] = [
     id: 'hono-microservice',
     name: 'Hono Microservice',
     description: 'A high-performance HTTP microservice using Bun and Hono with Hexagonal Architecture',
-    gitUrl: 'https://github.com/Sierra-Creative-Labs/hono-microservice-template.git',
+    gitUrl: 'https://github.com/SierraCreativeLabs/hono-ms-template.git',
   },
 ];
 
