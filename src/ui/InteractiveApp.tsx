@@ -9,7 +9,7 @@ import { Select } from '../components/Select';
 import type { SelectItem } from '../components/Select';
 import { TextInput } from '../components/TextInput';
 import { Toggle } from '../components/Toggle';
-import { runScaffold } from '../services/scaffold';
+import { resolveTemplates, runScaffold } from '../services/scaffold';
 
 export interface InteractiveAppProps {
   initialType?: string;
@@ -55,6 +55,9 @@ export const InteractiveApp: React.FC<InteractiveAppProps> = ({
   const [author, setAuthor] = useState(initialAuthor);
   const [git, setGit] = useState(initialGit);
   const [install, setInstall] = useState(initialInstall);
+  
+  // Custom prompts state
+  const [promptsState, setPromptsState] = useState<Record<string, any>>({});
 
   const [filesStatus, setFilesStatus] = useState<'pending' | 'active' | 'success' | 'error'>('pending');
   const [hooksStatus, setHooksStatus] = useState<'pending' | 'active' | 'success' | 'error'>('pending');
@@ -62,13 +65,24 @@ export const InteractiveApp: React.FC<InteractiveAppProps> = ({
   const [installStatus, setInstallStatus] = useState<'pending' | 'active' | 'success' | 'skip' | 'error'>('pending');
   const [errorMessage, setErrorMessage] = useState('');
 
+  // Load custom prompts dynamically from the selected template's manifest
+  const templates = resolveTemplates();
+  const selectedTemplate = templates.find(t => t.id === type);
+  const customPrompts = selectedTemplate?.manifest.prompts || [];
+
   // Setup the list of steps to show
-  const steps: Step[] = [];
+  const steps: string[] = [];
   if (!initialType) steps.push('TYPE');
   if (!initialProjectName) steps.push('NAME');
   if (!initialTargetPath) steps.push('PATH');
   if (!initialDescription) steps.push('DESCRIPTION');
   if (!initialAuthor) steps.push('AUTHOR');
+  
+  // Inject steps for each custom manifest prompt (e.g. PROMPT_entity)
+  for (const p of customPrompts) {
+    steps.push(`PROMPT_${p.name}`);
+  }
+
   steps.push('GIT');
   steps.push('INSTALL');
   steps.push('CONFIRM');
@@ -98,7 +112,10 @@ export const InteractiveApp: React.FC<InteractiveAppProps> = ({
             git,
             install,
             interactive: true,
-            customVariables,
+            customVariables: {
+              ...customVariables,
+              ...promptsState,
+            },
             onProgress: (step, status) => {
               if (step === 'files' && status !== 'skip') setFilesStatus(status);
               if (step === 'hooks' && status !== 'skip') setHooksStatus(status);
@@ -177,6 +194,7 @@ export const InteractiveApp: React.FC<InteractiveAppProps> = ({
             {currentStep === 'PATH' && 'Enter Installation Path'}
             {currentStep === 'DESCRIPTION' && 'Enter Project Description'}
             {currentStep === 'AUTHOR' && 'Enter Author Name'}
+            {currentStep?.startsWith('PROMPT_') && `Enter Custom Prompt: ${currentStep.replace('PROMPT_', '')}`}
             {currentStep === 'GIT' && 'Initialize Git Repository?'}
             {currentStep === 'INSTALL' && 'Install Dependencies?'}
             {currentStep === 'CONFIRM' && 'Confirm Configuration'}
@@ -258,6 +276,32 @@ export const InteractiveApp: React.FC<InteractiveAppProps> = ({
           </Box>
         )}
 
+        {currentStep?.startsWith('PROMPT_') && (() => {
+          const promptName = currentStep.replace('PROMPT_', '');
+          const promptObj = customPrompts.find(p => p.name === promptName);
+          if (!promptObj) return null;
+
+          return (
+            <Box flexDirection="column">
+              <Text color="gray">{promptObj.message} (default: {String(promptObj.default)}):</Text>
+              <Box marginY={1}>
+                <TextInput
+                  value={String(promptsState[promptName] ?? '')}
+                  placeholder={String(promptObj.default)}
+                  onChange={(val: string) => {
+                    setPromptsState(prev => ({ ...prev, [promptName]: val }));
+                  }}
+                  onSubmit={(val: string) => {
+                    const finalVal = val.trim() || String(promptObj.default);
+                    setPromptsState(prev => ({ ...prev, [promptName]: finalVal }));
+                    handleNext();
+                  }}
+                />
+              </Box>
+            </Box>
+          );
+        })()}
+
         {currentStep === 'GIT' && (
           <Box flexDirection="column">
             <Text color="gray">
@@ -302,6 +346,11 @@ export const InteractiveApp: React.FC<InteractiveAppProps> = ({
             <Text>
               Author: <Text color="violet">{author || '(none)'}</Text>
             </Text>
+            {customPrompts.map(p => (
+              <Text key={p.name}>
+                {p.name}: <Text color="violet">{String(promptsState[p.name] ?? p.default)}</Text>
+              </Text>
+            ))}
             <Text>
               Git Init: <Text color="violet">{git ? 'Yes' : 'No'}</Text>
             </Text>
