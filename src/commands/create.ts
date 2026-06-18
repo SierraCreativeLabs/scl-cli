@@ -19,7 +19,7 @@ interface CreateCommandOptions {
 
 export const createCommand = new Command('create')
   .description('Generate a new project scaffold')
-  .argument('[type]', 'Type/alias of the project scaffold (e.g. ms, microservice)')
+  .argument('[type]', 'Template name/alias (e.g. hono-microservice) or a Git repository URL')
   .argument('[project-name]', 'Name of the project directory')
   .argument('[target-path]', 'Directory where the project folder will be created (default: current directory)')
   .option('-d, --description <desc>', 'Project description')
